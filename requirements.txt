@@ -1,5 +1,13 @@
 dash==2.14.2
 flask==3.0.1
 dash_bootstrap_components==1.5.0
-
-
+pandas==2.1.4
+sqlalchemy==1.4.51
+psycopg2-binary==2.9.9
+python-dotenv
+chime
+python-dotenv~=1.0.1
+plotly~=5.18.0
+scikit-learn~=1.4.0
+gunicorn==21.2.0
+streamlit==1.32.2
