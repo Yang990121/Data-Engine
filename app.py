@@ -27,8 +27,8 @@ class SimpleLinearRegressionModel:
             return self.df['X2'] * 1.5 + np.random.randn(len(self.df)) * 0.1
 
 
-db_manager = DatabaseManager(database_name="is3107")
-data = db_manager.read_table(table_name="housing_data")
+# db_manager = DatabaseManager(database_name="is3107")
+# data = db_manager.read_table(table_name="housing_data")
 
 # Load the dataset
 df = create_dataset()
@@ -72,6 +72,6 @@ with tab2:
     st.header("Testing 123")
     st.write("This can be our EDA Tab ")
 
-    st.dataframe(data)
+    # st.dataframe(data)
 
 # Note: The plotting and model logic is simplified and needs to be adapted based on your actual model and data.
