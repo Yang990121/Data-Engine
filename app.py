@@ -12,7 +12,7 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 app = dash.Dash(__name__,
                 external_stylesheets=[dbc.themes.ZEPHYR, dbc.icons.BOOTSTRAP, dbc.icons.FONT_AWESOME],
                 suppress_callback_exceptions=True,
-                prevent_initial_callbacks = "initial_duplicate"
+                prevent_initial_callbacks="initial_duplicate"
                 )
 
 app.server.secret_key = "testkey"
