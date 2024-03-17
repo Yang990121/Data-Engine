@@ -1,4 +1,5 @@
 import os
+import streamlit as st
 import pandas as pd
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
@@ -12,8 +13,10 @@ class DatabaseManager:
     def __init__(self, database_name="is3107"):
         load_dotenv()
 
-        self.pg_user = os.getenv("PG_USER")
-        self.pg_password = os.getenv("PG_PASSWORD")
+        # self.pg_user = os.getenv("PG_USER")
+        # self.pg_password = os.getenv("PG_PASSWORD")
+        self.pg_user = st.secrets["postgres"]["user"]
+        self.pg_password = st.secrets["postgres"]["password"]
         self.pg_db = database_name
 
         self.db_uri = f"postgresql://{self.pg_user}:{self.pg_password}@localhost:5432/{self.pg_db}"
