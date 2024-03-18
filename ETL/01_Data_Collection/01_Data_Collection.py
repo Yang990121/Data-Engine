@@ -150,41 +150,266 @@ def data_collection_etl():
             download_path = os.path.join(os.getcwd(), '01_dataset')
             if not os.path.exists(download_path):
                 os.makedirs(download_path)
-            csv_file_path = os.path.join(download_path, csv_name)  # Provide the desired file path
+            download_path_2 = os.path.join(download_path, 'new_api_dataset')
+            if not os.path.exists(download_path_2):
+                os.makedirs(download_path_2)
+
+            csv_file_path = os.path.join(download_path_2, csv_name)  # Provide the desired file path
 
             # Export the DataFrame to a CSV file
             df.to_csv(csv_file_path, index=False)  # Set index=False to exclude the index from the CSV file
 
-            print(f"DataFrame has been exported to {csv_file_path}")   
+            print(f"DataFrame has been exported to {csv_file_path}")  
+        return download_path
 
-    @task
-    def create_table():
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS resale_flat_prices (
-        _id SERIAL PRIMARY KEY,
-        month VARCHAR(10),
-        town VARCHAR(50),
-        flat_type VARCHAR(20),
-        block VARCHAR(10),
-        street_name VARCHAR(100),
-        storey_range VARCHAR(10),
-        floor_area_sqm FLOAT,
-        flat_model VARCHAR(50),
-        lease_commence_date VARCHAR(10),
-        resale_price FLOAT,
-        remaining_lease VARCHAR(50) NULL
-    );
-        """
-        # Use the Airflow PostgresHook to execute the SQL
-        hook = PostgresHook(postgres_conn_id='postgres_assignment')
-        hook.run(create_table_sql, autocommit=True)
+    @task() 
+    def data_combination(download_path: str):
+        # Initialize an empty list to store DataFrames
+        dfs = []
+        download_path_2 = os.path.join(download_path, 'new_api_dataset')
+
+        # Loop through files in the download path
+        for filename in os.listdir(download_path_2):
+            if filename.endswith(".csv"):
+                # Read each CSV file and append it to the list of DataFrames
+                df = pd.read_csv(os.path.join(download_path_2, filename))
+                dfs.append(df)
+
+        # Combine all DataFrames
+        combined_df = pd.concat(dfs, ignore_index=True)
+
+        # Check if '_id' column exists and drop it
+        if '_id' in combined_df.columns:
+            combined_df.drop(columns=['_id'], inplace=True)
+
+        # Check if 'remaining_lease' column exists and drop it
+        if 'remaining_lease' in combined_df.columns:
+            combined_df.drop(columns=['remaining_lease'], inplace=True)
+            
+        # Define the file path for the CSV file
+        csv_name = 'combined_dataframe.csv'
+        csv_file_path = os.path.join(download_path, 'processed_data')
+        if not os.path.exists(csv_file_path):
+                os.makedirs(csv_file_path)
+        csv_file_path_2 = os.path.join(csv_file_path, csv_name)
+
+        # Export the DataFrame to a CSV file
+        combined_df.to_csv(csv_file_path_2, index=False)
+
+        return download_path
+    
+    
+    @task()
+    def process_external_data(download_path: str):
+        # Load the dataset
+        csv_file_path = os.path.join(download_path, 'downloaded_data/resale-flat-prices-full-version.csv')
+        df = pd.read_csv(csv_file_path)
+
+        # Select columns 14 to 41 from the original DataFrame
+        feature_dict = df.iloc[:, [14] + list(range(16, 41))]
+
+        # Remove duplicate rows from the DataFrame
+        feature_dict_no_duplicates = feature_dict.drop_duplicates()
+
+        # Define the file path for the CSV file
+        csv_output_file_path = os.path.join(download_path,'processed_data/feature_dict.csv')
+
+        # Export the DataFrame to a CSV file
+        feature_dict_no_duplicates.to_csv(csv_output_file_path, index=False)
+
+        return download_path
         
-    @task
-    def load(order_data_dict: dict):
-        load_sql = """
-        INSERT INTO orders (order_id, customer_id, amount, status)
-        VALUES (%(order_id)s, %(customer_id)s, %(amount)s, %(status)s);
-        """
-        # Use the Airflow PostgresHook to execute the SQL
-        hook = PostgresHook(postgres_conn_id='postgres_t5')
-        hook.run(load_sql, parameters=order_data_dict, autocommit=True)
+    @task()
+    def feature_engineering(download_path: str):
+        dict_file_path = os.path.join(download_path, 'processed_data/feature_dict.csv')
+        df_file_path = os.path.join(download_path, 'processed_data/combined_dataframe.csv')
+        
+        # Read the CSV files into DataFrames
+        feature_dict = pd.read_csv(dict_file_path)
+        df = pd.read_csv(df_file_path)
+
+        # Create a new column by concatenating 'block' and 'street_name'
+        df['address'] = df['block'] + ', ' + df['street_name']
+
+        # Perform an inner join between df and feature_dict on the 'address' column
+        merged_df = pd.merge(df, feature_dict, on='address', how='inner')
+        
+        # Split 'month' column into 'year' and 'quarter'
+        merged_df[['year', 'quarter']] = merged_df['month'].str.split('-', expand=True)
+
+        # Define a function to map month to quarter
+        def map_to_quarter(month):
+            month_int = int(month)
+            if 1 <= month_int <= 3:
+                return '1'
+            elif 4 <= month_int <= 6:
+                return '2'
+            elif 7 <= month_int <= 9:
+                return '3'
+            else:
+                return '4'
+
+        # Apply the function to map month to quarter
+        merged_df['quarter'] = merged_df['quarter'].apply(map_to_quarter)
+        
+        merged_df['year']=merged_df['year'].astype(int)
+        
+        filtered_df = merged_df[(merged_df['year'] >= 1998) & ((merged_df['year'] == 2023) & (merged_df['quarter'] != 4) | (merged_df['year'] < 2023))]
+        
+        # Print out the unique values in the 'storey_range' column
+        unique_storey_ranges = filtered_df['storey_range'].unique()
+        
+        # Clean the storey_range data and calculate average range
+        avg_storey_ranges = {}
+
+        for range_str in unique_storey_ranges:
+            start, end = map(int, range_str.split(' TO '))
+            avg_storey = (start + end) / 2
+            avg_storey_ranges[range_str] = avg_storey
+    
+    
+        # Add a new column 'avg_storey_range' using the dictionary mapping
+        filtered_df['avg_storey_range'] = filtered_df['storey_range'].map(avg_storey_ranges)
+        
+        
+        # Combine 'flat_type' and 'flat_model' columns into a new column 'flat_type_model'
+        filtered_df['flat_type_model'] = filtered_df['flat_type'] + ' ' + filtered_df['flat_model']
+        
+        
+        categories = {
+            'neighbourhood': (-float('inf'), 210),
+            'good': (200, 245),
+            'elite': (245, float('inf'))
+        }
+
+        # Define a function to categorize cutoff_point values
+        def categorize_cutoff(cutoff):
+            for category, (lower, upper) in categories.items():
+                if lower <= cutoff < upper:
+                    return category
+
+        # Apply the function to create the 'school_type' column
+        filtered_df['school_type'] = filtered_df['cutoff_point'].apply(categorize_cutoff)
+        
+        
+        # Define the cutoff point ranges and corresponding categories
+        proximity_categories = {
+            'within 3 minutes': (-float('inf'), 80),
+            '3-5 minutes': (80, 240),
+            '5-10 minutes': (240, 500),
+            '10-15 minutes': (500, 1000),
+            'more than 15 minutes': (1000, float('inf'))
+        }
+
+        # Define a function to categorize bus_stop_nearest_distance values
+        def categorize_proximity(cutoff):
+            for category, (lower, upper) in proximity_categories.items():
+                if lower <= cutoff < upper:
+                    return category
+
+        # Apply the function to create the 'bus_stop_proximity' column
+        filtered_df['bus_stop_proximity'] = filtered_df['bus_stop_nearest_distance'].apply(categorize_proximity)
+        filtered_df['mrt_proximity'] = filtered_df['mrt_nearest_distance'].apply(categorize_proximity)
+        
+        # Apply the function to create the 'sch_proximity' column
+        filtered_df['pri_sch_proximity'] = filtered_df['pri_sch_nearest_distance'].apply(categorize_cutoff)
+        filtered_df['sec_sch_proximity'] = filtered_df['sec_sch_nearest_dist'].apply(categorize_cutoff)
+        
+        
+        # Define the file path for the CSV file
+        csv_output_file_path = os.path.join(download_path,'processed_data/filtered_df1.csv')
+
+        # Export the DataFrame to a CSV file
+        filtered_df.to_csv(csv_output_file_path, index=False)
+        
+        return download_path
+
+
+    @task()
+    def normalize_price(download_path: str):
+        dict_file_path = os.path.join(download_path, 'downloaded_data/QSGR628BIS.csv')
+        df_file_path = os.path.join(download_path, 'processed_data/filtered_df1.csv')
+        
+        # Load resale index data
+        resale_index = pd.read_csv(dict_file_path)
+        resale_index['DATE'] = pd.to_datetime(resale_index['DATE'])
+
+        # Extract year and month into separate columns
+        resale_index['year'] = resale_index['DATE'].dt.year
+        resale_index['month'] = resale_index['DATE'].dt.month
+
+        # Define a function to map month values to quarter values
+        def month_to_quarter(month):
+            if month == 1:
+                return 1
+            elif month == 4:
+                return 2
+            elif month == 7:
+                return 3
+            else:
+                return 4
+        
+        # Apply the function to create the 'quarter' column
+        resale_index['quarter'] = resale_index['month'].apply(month_to_quarter)
+        resale_index['resale_index'] = resale_index['QSGR628BIS'].astype(float)
+        
+        # Calculate current resale index for 2023, quarter 4
+        resale_index_current = resale_index[(resale_index['year'] == 2023) & (resale_index['quarter'] == 4)]['resale_index'].iloc[0]
+        
+        # Calculate inflation
+        resale_index['inflation'] = ((resale_index_current - resale_index['resale_index']) / resale_index['resale_index']) + 1
+        
+        # Load filtered DataFrame
+        filtered_df = pd.read_csv(df_file_path)
+        filtered_df['quarter'] = filtered_df['quarter'].astype(int)
+        
+        # Merge with resale index data on year and quarter
+        filtered_df = pd.merge(filtered_df, resale_index[['year', 'quarter', 'inflation']], on=['year', 'quarter'], how='left')
+        
+        # Calculate normalized resale price
+        filtered_df['normalized_resale_price'] = filtered_df['inflation'] * filtered_df['resale_price']
+        
+        # Define the file path for the CSV file
+        csv_output_file_path = os.path.join(download_path,'processed_data/filtered_df2.csv')
+
+        # Export the DataFrame to a CSV file
+        filtered_df.to_csv(csv_output_file_path, index=False)
+        
+        return download_path
+
+        
+
+        
+        
+        
+    # @task
+    # def create_table():
+    #     create_table_sql = """
+    #     CREATE TABLE IF NOT EXISTS resale_flat_prices (
+    #     _id SERIAL PRIMARY KEY,
+    #     month VARCHAR(10),
+    #     town VARCHAR(50),
+    #     flat_type VARCHAR(20),
+    #     block VARCHAR(10),
+    #     street_name VARCHAR(100),
+    #     storey_range VARCHAR(10),
+    #     floor_area_sqm FLOAT,
+    #     flat_model VARCHAR(50),
+    #     lease_commence_date VARCHAR(10),
+    #     resale_price FLOAT,
+    #     remaining_lease VARCHAR(50) NULL
+    # );
+    #     """
+    #     # Use the Airflow PostgresHook to execute the SQL
+    #     hook = PostgresHook(postgres_conn_id='postgres_assignment')
+    #     hook.run(create_table_sql, autocommit=True)
+        
+    # @task
+    # def load(order_data_dict: dict):
+    #     load_sql = """
+    #     INSERT INTO orders (order_id, customer_id, amount, status)
+    #     VALUES (%(order_id)s, %(customer_id)s, %(amount)s, %(status)s);
+    #     """
+    #     # Use the Airflow PostgresHook to execute the SQL
+    #     hook = PostgresHook(postgres_conn_id='postgres_t5')
+    #     hook.run(load_sql, parameters=order_data_dict, autocommit=True)
