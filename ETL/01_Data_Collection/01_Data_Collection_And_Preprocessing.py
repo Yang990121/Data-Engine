@@ -378,38 +378,110 @@ def data_collection_etl():
         return download_path
 
         
+    @task
+    def create_table():
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS resale_flat_prices (
+            month DATE,
+            town VARCHAR(255),
+            flat_type VARCHAR(50),
+            block VARCHAR(10),
+            street_name VARCHAR(255),
+            storey_range VARCHAR(20),
+            floor_area_sqm FLOAT,
+            flat_model VARCHAR(50),
+            lease_commence_date INTEGER,
+            resale_price FLOAT,
+            address VARCHAR(255),
+            commercial INTEGER,
+            market_hawker INTEGER,
+            multistorey_carpark INTEGER,
+            precinct_pavilion INTEGER,
+            total_dwelling_units INTEGER,
+            postal INTEGER,
+            planning_area VARCHAR(255),
+            mall_nearest_distance FLOAT,
+            hawker_nearest_distance FLOAT,
+            hawker_food_stalls INTEGER,
+            hawker_market_stalls INTEGER,
+            mrt_nearest_distance FLOAT,
+            mrt_name VARCHAR(255),
+            bus_interchange INTEGER,
+            mrt_interchange INTEGER,
+            bus_stop_nearest_distance FLOAT,
+            bus_stop_name VARCHAR(255),
+            pri_sch_nearest_distance FLOAT,
+            pri_sch_name VARCHAR(255),
+            vacancy INTEGER,
+            pri_sch_affiliation INTEGER,
+            sec_sch_nearest_dist FLOAT,
+            sec_sch_name VARCHAR(255),
+            cutoff_point INTEGER,
+            affiliation INTEGER,
+            year INTEGER,
+            quarter INTEGER,
+            avg_storey_range FLOAT,
+            flat_type_model VARCHAR(50),
+            school_type VARCHAR(50),
+            bus_stop_proximity VARCHAR(50),
+            mrt_proximity VARCHAR(50),
+            pri_sch_proximity VARCHAR(50),
+            sec_sch_proximity VARCHAR(50),
+            inflation FLOAT,
+            normalized_resale_price FLOAT
+        );
+        """
+        # Use the Airflow PostgresHook to execute the SQL
+        hook = PostgresHook(postgres_conn_id='is3107_project')
+        hook.run(create_table_sql, autocommit=True)
+        
+    @task
+    def load(download_path: str):
+        # Read the CSV file into a DataFrame
+        df_file_path = os.path.join(download_path, 'processed_data/filtered_df2.csv')
+        
+        # Read the CSV files into DataFrames
+        df = pd.read_csv(df_file_path)
 
+        # Convert DataFrame to a list of dictionaries (each dictionary represents a row)
+        data_to_insert = df.to_dict(orient='records')
         
-        
-        
-    # @task
-    # def create_table():
-    #     create_table_sql = """
-    #     CREATE TABLE IF NOT EXISTS resale_flat_prices (
-    #     _id SERIAL PRIMARY KEY,
-    #     month VARCHAR(10),
-    #     town VARCHAR(50),
-    #     flat_type VARCHAR(20),
-    #     block VARCHAR(10),
-    #     street_name VARCHAR(100),
-    #     storey_range VARCHAR(10),
-    #     floor_area_sqm FLOAT,
-    #     flat_model VARCHAR(50),
-    #     lease_commence_date VARCHAR(10),
-    #     resale_price FLOAT,
-    #     remaining_lease VARCHAR(50) NULL
-    # );
-    #     """
-    #     # Use the Airflow PostgresHook to execute the SQL
-    #     hook = PostgresHook(postgres_conn_id='postgres_assignment')
-    #     hook.run(create_table_sql, autocommit=True)
-        
-    # @task
-    # def load(order_data_dict: dict):
-    #     load_sql = """
-    #     INSERT INTO orders (order_id, customer_id, amount, status)
-    #     VALUES (%(order_id)s, %(customer_id)s, %(amount)s, %(status)s);
-    #     """
-    #     # Use the Airflow PostgresHook to execute the SQL
-    #     hook = PostgresHook(postgres_conn_id='postgres_t5')
-    #     hook.run(load_sql, parameters=order_data_dict, autocommit=True)
+        # Define the SQL query for inserting data into the table
+        load_sql = """
+        INSERT INTO resale_data (
+            month, town, flat_type, block, street_name, storey_range, floor_area_sqm,
+            flat_model, lease_commence_date, resale_price, address, commercial, market_hawker,
+            multistorey_carpark, precinct_pavilion, total_dwelling_units, postal, planning_area,
+            mall_nearest_distance, hawker_nearest_distance, hawker_food_stalls, hawker_market_stalls,
+            mrt_nearest_distance, mrt_name, bus_interchange, mrt_interchange, bus_stop_nearest_distance,
+            bus_stop_name, pri_sch_nearest_distance, pri_sch_name, vacancy, pri_sch_affiliation,
+            sec_sch_nearest_dist, sec_sch_name, cutoff_point, affiliation, year, quarter, avg_storey_range,
+            flat_type_model, school_type, bus_stop_proximity, mrt_proximity, pri_sch_proximity,
+            sec_sch_proximity, inflation, normalized_resale_price
+        ) VALUES (
+            %(month)s, %(town)s, %(flat_type)s, %(block)s, %(street_name)s, %(storey_range)s, %(floor_area_sqm)s,
+            %(flat_model)s, %(lease_commence_date)s, %(resale_price)s, %(address)s, %(commercial)s, %(market_hawker)s,
+            %(multistorey_carpark)s, %(precinct_pavilion)s, %(total_dwelling_units)s, %(postal)s, %(planning_area)s,
+            %(mall_nearest_distance)s, %(hawker_nearest_distance)s, %(hawker_food_stalls)s, %(hawker_market_stalls)s,
+            %(mrt_nearest_distance)s, %(mrt_name)s, %(bus_interchange)s, %(mrt_interchange)s, %(bus_stop_nearest_distance)s,
+            %(bus_stop_name)s, %(pri_sch_nearest_distance)s, %(pri_sch_name)s, %(vacancy)s, %(pri_sch_affiliation)s,
+            %(sec_sch_nearest_dist)s, %(sec_sch_name)s, %(cutoff_point)s, %(affiliation)s, %(year)s, %(quarter)s,
+            %(avg_storey_range)s, %(flat_type_model)s, %(school_type)s, %(bus_stop_proximity)s, %(mrt_proximity)s,
+            %(pri_sch_proximity)s, %(sec_sch_proximity)s, %(inflation)s, %(normalized_resale_price)s
+        );
+        """
+        # Use the Airflow PostgresHook to execute the SQL
+        hook = PostgresHook(postgres_conn_id='is3107_project')
+        for row in data_to_insert:
+                hook.run(load_sql, parameters=row, autocommit=True)
+                
+    download_path = extract_external_data()
+    download_path_2 = data_combination(download_path)
+    download_path_3 = process_external_data(download_path_2)
+    download_path_4 = feature_engineering(download_path_3)
+    download_path_5 = normalize_price(download_path_4)
+    create_table()
+    load(download_path_5)
+                
+                
+data_collection_dag = data_collection_etl()
