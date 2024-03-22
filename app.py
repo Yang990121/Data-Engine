@@ -122,6 +122,13 @@ with tab2:
         price_by_flat_type = df.groupby('flat_type')['resale_price'].mean().sort_values(ascending=False).reset_index()
         fig4 = px.bar(price_by_flat_type, x='flat_type', y='resale_price', title='Average Resale Price by Flat Type')
         st.plotly_chart(fig4)
+
+        st.write("This is a random chart")
+        map_data = pd.DataFrame(
+            np.random.randn(1000, 2) / [50, 50] + [37.76, -122.4],
+            columns=['lat', 'lon'])
+
+        st.map(map_data)
     with col5:
         fig5 = px.scatter(df, x='floor_area_sqm', y='resale_price', title='Resale Price vs. Floor Area', trendline="ols",
                           opacity=0.5)
