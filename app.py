@@ -105,9 +105,7 @@ with tab2:
         df['remaining_lease_years'] = df['remaining_lease'].apply(calculate_remaining_lease_years)
 
         # Trend Over Time
-        data['month'] = pd.to_datetime(data['month'])
-        data['year_month'] = data['month'].dt.to_period('M')
-        data['year_month_str'] = data['year_month'].astype(str)
+        data['year_month_str'] = data['month'].astype(str)
         average_prices_over_time = data.groupby('year_month_str')['resale_price'].mean().reset_index()
         fig = px.line(average_prices_over_time, x='year_month_str', y='resale_price', title='Average Resale Prices Over Time')
         st.plotly_chart(fig)
