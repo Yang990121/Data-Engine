@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
+from pygwalker.api.streamlit import StreamlitRenderer, init_streamlit_comm
 from postgres_funcs.postgres_loader import DatabaseManager
 
 
@@ -29,6 +30,7 @@ class SimpleLinearRegressionModel:
 
 # db_manager = DatabaseManager(database_name="is3107")
 # data = db_manager.read_table(table_name="housing_data")
+data = pd.read_csv('01_Data_Collection/01A_External_Data/resale_flat_prices_2017-2024_new.csv')
 
 # Load the dataset
 df = create_dataset()
@@ -36,10 +38,15 @@ df = create_dataset()
 # Initialize the model
 model = SimpleLinearRegressionModel(df)
 
+
+st.set_page_config(layout="wide")
+
 # Streamlit UI
 st.title('IS3107 Project')
 
 tab1, tab2 = st.tabs(["Main", "Testing 123"])
+
+init_streamlit_comm()
 
 with tab1:
     st.header("Main Tab")
@@ -69,8 +76,14 @@ with tab1:
         st.plotly_chart(fig)
 
 with tab2:
-    st.header("Testing 123")
+    st.header("Tableau Style EDA")
     st.write("This can be our EDA Tab ")
+    @st.cache_resource
+    def get_pyg_renderer() -> "StreamlitRenderer":
+        return StreamlitRenderer(data, spec="./gw_config.json", debug=False)
+
+    renderer = get_pyg_renderer()
+    renderer.render_explore()
 
     # st.dataframe(data)
 
