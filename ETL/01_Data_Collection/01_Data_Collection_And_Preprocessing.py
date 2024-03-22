@@ -381,8 +381,9 @@ def data_collection_etl():
     @task
     def create_table():
         create_table_sql = """
+        DROP TABLE IF EXISTS resale_flat_prices;
         CREATE TABLE IF NOT EXISTS resale_flat_prices (
-            month DATE,
+            month VARCHAR(50),
             town VARCHAR(255),
             flat_type VARCHAR(50),
             block VARCHAR(10),
@@ -448,7 +449,7 @@ def data_collection_etl():
         
         # Define the SQL query for inserting data into the table
         load_sql = """
-        INSERT INTO resale_data (
+        INSERT INTO resale_flat_prices (
             month, town, flat_type, block, street_name, storey_range, floor_area_sqm,
             flat_model, lease_commence_date, resale_price, address, commercial, market_hawker,
             multistorey_carpark, precinct_pavilion, total_dwelling_units, postal, planning_area,
@@ -475,8 +476,8 @@ def data_collection_etl():
         for row in data_to_insert:
                 hook.run(load_sql, parameters=row, autocommit=True)
                 
-    download_path = extract_external_data()
-    download_path_2 = data_combination(download_path)
+    # download_path = extract_external_data()
+    download_path_2 = data_combination('/Users/renzhou/Downloads/Y3S2/IS3107/Data-Engine/ETL/01_Data_Collection/01_dataset')
     download_path_3 = process_external_data(download_path_2)
     download_path_4 = feature_engineering(download_path_3)
     download_path_5 = normalize_price(download_path_4)
