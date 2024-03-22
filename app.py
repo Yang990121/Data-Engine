@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objs as go
+import plotly.express as px
+import plotly.figure_factory as ff
 from pygwalker.api.streamlit import StreamlitRenderer, init_streamlit_comm
 from postgres_funcs.postgres_loader import DatabaseManager
 
@@ -44,38 +46,109 @@ st.set_page_config(layout="wide")
 # Streamlit UI
 st.title('IS3107 Project')
 
-tab1, tab2 = st.tabs(["Main", "Testing 123"])
+tab1, tab2, tab3 = st.tabs(["Main","EDA" ,"Tableau"])
 
 init_streamlit_comm()
 
 with tab1:
-    st.header("Main Tab")
-    st.write("This can be our main prediction Tab")
-    # Display the dataframe
-    st.write("Dataframe:")
-    st.dataframe(df)
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.header("Main Tab")
+        st.write("This can be our main prediction Tab")
+        # Display the dataframe
+        st.write("Dataframe:")
+        st.dataframe(df)
 
-    # Dropdown for selecting the prediction basis
-    prediction_basis = st.selectbox('Predict with:', ['X1 vs Y', 'X2 vs Y'])
+        # Dropdown for selecting the prediction basis
+        prediction_basis = st.selectbox('Predict with:', ['X1 vs Y', 'X2 vs Y'])
 
-    if prediction_basis:
-        selected_column = prediction_basis.split(' vs ')[0]
-        # Predict
-        predictions = model.predict(selected_column)
+        if prediction_basis:
+            selected_column = prediction_basis.split(' vs ')[0]
+            # Predict
+            predictions = model.predict(selected_column)
 
-        # Actual values
-        actual = df['Y']
+            # Actual values
+            actual = df['Y']
 
-        # Plotting the results
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=actual, y=predictions, mode='markers', name='Predicted vs Actual'))
-        fig.add_trace(
-            go.Scatter(x=[min(actual), max(actual)], y=[min(actual), max(actual)], mode='lines', name='Perfect Fit'))
-        fig.update_layout(title='Linear Regression Predictions', xaxis_title='Actual Values',
-                          yaxis_title='Predicted Values')
-        st.plotly_chart(fig)
+            # Plotting the results
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=actual, y=predictions, mode='markers', name='Predicted vs Actual'))
+            fig.add_trace(
+                go.Scatter(x=[min(actual), max(actual)], y=[min(actual), max(actual)], mode='lines', name='Perfect Fit'))
+            fig.update_layout(title='Linear Regression Predictions', xaxis_title='Actual Values',
+                              yaxis_title='Predicted Values')
+            st.plotly_chart(fig)
 
 with tab2:
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.header("Exploratory Data Analysis")
+        df = data.copy()
+
+
+        def calculate_remaining_lease_years(lease):
+            parts = lease.split(' ')  # Split the string by spaces
+            years = int(parts[0])  # The first part is always the number of years
+
+            # If there are more than 2 parts, it means there's also a month component
+            if len(parts) > 2:
+                months = int(parts[2])  # The third part (index 2) is the number of months
+            else:
+                months = 0  # If no month component, set months to 0
+
+            # Convert the total lease to years, including months as a fractional year
+            total_years = years + months / 12.0
+            return total_years
+
+
+        # Apply the function to each row in the 'remaining_lease' column to create a new column
+        df['remaining_lease_years'] = df['remaining_lease'].apply(calculate_remaining_lease_years)
+
+        # Trend Over Time
+        data['month'] = pd.to_datetime(data['month'])
+        data['year_month'] = data['month'].dt.to_period('M')
+        data['year_month_str'] = data['year_month'].astype(str)
+        average_prices_over_time = data.groupby('year_month_str')['resale_price'].mean().reset_index()
+        fig = px.line(average_prices_over_time, x='year_month_str', y='resale_price', title='Average Resale Prices Over Time')
+        st.plotly_chart(fig)
+
+        # Average resale price by town
+        price_by_town = df.groupby('town')['resale_price'].mean().sort_values(ascending=False).reset_index()
+        fig3 = px.bar(price_by_town, x='resale_price', y='town', orientation='h', title='Average Resale Price by Town')
+        st.plotly_chart(fig3)
+
+        # Average resale price by flat type
+        price_by_flat_type = df.groupby('flat_type')['resale_price'].mean().sort_values(ascending=False).reset_index()
+        fig4 = px.bar(price_by_flat_type, x='flat_type', y='resale_price', title='Average Resale Price by Flat Type')
+        st.plotly_chart(fig4)
+
+        fig5 = px.scatter(df, x='floor_area_sqm', y='resale_price', title='Resale Price vs. Floor Area', trendline="ols",
+                          opacity=0.5)
+        st.plotly_chart(fig5)
+
+        fig6 = px.scatter(df, x='remaining_lease_years', y='resale_price', title='Resale Price vs. Remaining Lease Years',
+                          opacity=0.5)
+        st.plotly_chart(fig6)
+
+        # Calculating the correlation matrix
+        correlation_matrix = df[['floor_area_sqm', 'lease_commence_date', 'resale_price', 'remaining_lease_years']].corr()
+
+        # Using Plotly's Figure Factory to create the heatmap
+        fig7 = ff.create_annotated_heatmap(
+            z=correlation_matrix.values,
+            x=list(correlation_matrix.columns),
+            y=list(correlation_matrix.index),
+            annotation_text=correlation_matrix.round(2).values,
+            showscale=True,
+            colorscale='Viridis'
+        )
+
+        fig7.update_layout(title_text='Correlation Matrix', xaxis_title="Features", yaxis_title="Features")
+
+        # Display the plot in Streamlit
+        st.plotly_chart(fig7)
+
+with tab3:
     st.header("Tableau Style EDA")
     st.write("This can be our EDA Tab ")
     @st.cache_resource

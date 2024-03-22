@@ -8,6 +8,7 @@ __pycache__/
 # C extensions
 *.so
 
+*.csv
 Data_Collection_01/01A_External_Data/*
 01_Data_Collection/01A_External_Data/*
 
