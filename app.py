@@ -30,7 +30,7 @@ class SimpleLinearRegressionModel:
 
 # db_manager = DatabaseManager(database_name="is3107")
 # data = db_manager.read_table(table_name="housing_data")
-data = pd.read_csv('01_Data_Collection/01A_External_Data/resale_flat_prices_2017-2024_new.csv')
+data = pd.read_csv('testing/resale_flat_prices_2017-2024_new.csv')
 
 # Load the dataset
 df = create_dataset()
