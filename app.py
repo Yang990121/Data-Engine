@@ -7,6 +7,8 @@ import plotly.figure_factory as ff
 from pygwalker.api.streamlit import StreamlitRenderer, init_streamlit_comm
 from st_files_connection import FilesConnection
 from postgres_funcs.postgres_loader import DatabaseManager
+from google.cloud import bigquery
+from google.oauth2 import service_account
 
 st.set_page_config(layout="wide")
 
@@ -18,6 +20,18 @@ def create_dataset():
     X2 = np.random.randn(100) * 2
     Y = X1 * 3 + X2 * 1.5 + np.random.randn(100)
     return pd.DataFrame({'X1': X1, 'X2': X2, 'Y': Y})
+
+def query_table_from_bq(table_name):
+    CREDS = 'is3107-418011-f63573e5e1f3.json'
+    credentials = service_account.Credentials.from_service_account_file(CREDS)
+    client = bigquery.Client(credentials=credentials)
+    job_config = bigquery.QueryJobConfig()
+
+    # Set the destination table
+    table = client.dataset(dataset_id='is3107-418011.is3107').table(table_id=f"is3107-418011.is3107.{table_name}")
+    job_config.destination = table
+    query = f"SELECT * FROM `is3107-418011.is3107.{table_name}`"
+    return client.query(query).to_dataframe()
 
 
 class SimpleLinearRegressionModel:
@@ -59,6 +73,7 @@ with tab1:
         # Display the dataframe
         st.write("Testing:")
         st.dataframe(data2.head())
+        st.dataframe(query_table_from_bq("testing2"))
         # st.dataframe(data2)
 
         st.write("Dataframe:")
