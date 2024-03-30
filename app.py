@@ -59,7 +59,7 @@ with tab1:
         # Display the dataframe
         st.write("Testing:")
         st.dataframe(data2.head())
-        st.dataframe(data2)
+        # st.dataframe(data2)
 
         st.write("Dataframe:")
         st.dataframe(df)
