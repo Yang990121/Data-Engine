@@ -5,8 +5,10 @@ import plotly.graph_objs as go
 import plotly.express as px
 import plotly.figure_factory as ff
 from pygwalker.api.streamlit import StreamlitRenderer, init_streamlit_comm
+from st_files_connection import FilesConnection
 from postgres_funcs.postgres_loader import DatabaseManager
 
+st.set_page_config(layout="wide")
 
 # Simulated model and data set functions for demonstration
 # Replace these with your actual functions from models/testing_linear_regression and data_sets/testing
@@ -34,19 +36,18 @@ class SimpleLinearRegressionModel:
 # data = db_manager.read_table(table_name="housing_data")
 data = pd.read_csv('testing/resale_flat_prices_2017-2024_new.csv')
 
+conn = st.connection('gcs', type=FilesConnection)
+data2 = conn.read("is3107_bucket/resale_price.csv", input_format="csv", ttl=600)
 # Load the dataset
 df = create_dataset()
 
 # Initialize the model
 model = SimpleLinearRegressionModel(df)
 
-
-st.set_page_config(layout="wide")
-
 # Streamlit UI
 st.title('IS3107 Project')
 
-tab1, tab2, tab3 = st.tabs(["Main","EDA" ,"Tableau"])
+tab1, tab2, tab3 = st.tabs(["Main", "EDA", "Tableau"])
 
 init_streamlit_comm()
 
@@ -56,6 +57,10 @@ with tab1:
         st.header("Main Tab")
         st.write("This can be our main prediction Tab")
         # Display the dataframe
+        st.write("Testing:")
+        st.dataframe(data2.head())
+        st.dataframe(data2)
+
         st.write("Dataframe:")
         st.dataframe(df)
 
@@ -74,18 +79,17 @@ with tab1:
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=actual, y=predictions, mode='markers', name='Predicted vs Actual'))
             fig.add_trace(
-                go.Scatter(x=[min(actual), max(actual)], y=[min(actual), max(actual)], mode='lines', name='Perfect Fit'))
+                go.Scatter(x=[min(actual), max(actual)], y=[min(actual), max(actual)], mode='lines',
+                           name='Perfect Fit'))
             fig.update_layout(title='Linear Regression Predictions', xaxis_title='Actual Values',
                               yaxis_title='Predicted Values')
             st.plotly_chart(fig)
-
 
 with tab2:
     col1, col2, col3 = st.columns(3)
     with col2:
         st.header("Exploratory Data Analysis")
         df = data.copy()
-
 
     col4, col5 = st.columns(2)
 
@@ -111,7 +115,8 @@ with tab2:
         # Trend Over Time
         data['year_month_str'] = data['month'].astype(str)
         average_prices_over_time = data.groupby('year_month_str')['resale_price'].mean().reset_index()
-        fig = px.line(average_prices_over_time, x='year_month_str', y='resale_price', title='Average Resale Prices Over Time')
+        fig = px.line(average_prices_over_time, x='year_month_str', y='resale_price',
+                      title='Average Resale Prices Over Time')
         st.plotly_chart(fig)
         # Average resale price by town
         price_by_town = df.groupby('town')['resale_price'].mean().sort_values(ascending=False).reset_index()
@@ -130,16 +135,19 @@ with tab2:
 
         st.map(map_data)
     with col5:
-        fig5 = px.scatter(df, x='floor_area_sqm', y='resale_price', title='Resale Price vs. Floor Area', trendline="ols",
+        fig5 = px.scatter(df, x='floor_area_sqm', y='resale_price', title='Resale Price vs. Floor Area',
+                          trendline="ols",
                           opacity=0.5)
         st.plotly_chart(fig5)
 
-        fig6 = px.scatter(df, x='remaining_lease_years', y='resale_price', title='Resale Price vs. Remaining Lease Years',
+        fig6 = px.scatter(df, x='remaining_lease_years', y='resale_price',
+                          title='Resale Price vs. Remaining Lease Years',
                           opacity=0.5)
         st.plotly_chart(fig6)
 
         # Calculating the correlation matrix
-        correlation_matrix = df[['floor_area_sqm', 'lease_commence_date', 'resale_price', 'remaining_lease_years']].corr()
+        correlation_matrix = df[
+            ['floor_area_sqm', 'lease_commence_date', 'resale_price', 'remaining_lease_years']].corr()
 
         # Using Plotly's Figure Factory to create the heatmap
         fig7 = ff.create_annotated_heatmap(
@@ -159,9 +167,12 @@ with tab2:
 with tab3:
     st.header("Tableau Style EDA")
     st.write("This can be our EDA Tab ")
+
+
     @st.cache_resource
     def get_pyg_renderer() -> "StreamlitRenderer":
         return StreamlitRenderer(data, spec="./gw_config.json", debug=False)
+
 
     renderer = get_pyg_renderer()
     renderer.render_explore()
