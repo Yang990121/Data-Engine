@@ -79,37 +79,40 @@ with tab1:
                               yaxis_title='Predicted Values')
             st.plotly_chart(fig)
 
+
 with tab2:
-    col1, col2, col3 = st.columns([1, 2, 1])
+    col1, col2, col3 = st.columns(3)
     with col2:
         st.header("Exploratory Data Analysis")
         df = data.copy()
 
 
-        def calculate_remaining_lease_years(lease):
-            parts = lease.split(' ')  # Split the string by spaces
-            years = int(parts[0])  # The first part is always the number of years
-
-            # If there are more than 2 parts, it means there's also a month component
-            if len(parts) > 2:
-                months = int(parts[2])  # The third part (index 2) is the number of months
-            else:
-                months = 0  # If no month component, set months to 0
-
-            # Convert the total lease to years, including months as a fractional year
-            total_years = years + months / 12.0
-            return total_years
+    col4, col5 = st.columns(2)
 
 
-        # Apply the function to each row in the 'remaining_lease' column to create a new column
-        df['remaining_lease_years'] = df['remaining_lease'].apply(calculate_remaining_lease_years)
+    def calculate_remaining_lease_years(lease):
+        parts = lease.split(' ')  # Split the string by spaces
+        years = int(parts[0])  # The first part is always the number of years
 
+        # If there are more than 2 parts, it means there's also a month component
+        if len(parts) > 2:
+            months = int(parts[2])  # The third part (index 2) is the number of months
+        else:
+            months = 0  # If no month component, set months to 0
+
+        # Convert the total lease to years, including months as a fractional year
+        total_years = years + months / 12.0
+        return total_years
+
+
+    # Apply the function to each row in the 'remaining_lease' column to create a new column
+    df['remaining_lease_years'] = df['remaining_lease'].apply(calculate_remaining_lease_years)
+    with col4:
         # Trend Over Time
         data['year_month_str'] = data['month'].astype(str)
         average_prices_over_time = data.groupby('year_month_str')['resale_price'].mean().reset_index()
         fig = px.line(average_prices_over_time, x='year_month_str', y='resale_price', title='Average Resale Prices Over Time')
         st.plotly_chart(fig)
-
         # Average resale price by town
         price_by_town = df.groupby('town')['resale_price'].mean().sort_values(ascending=False).reset_index()
         fig3 = px.bar(price_by_town, x='resale_price', y='town', orientation='h', title='Average Resale Price by Town')
@@ -120,6 +123,13 @@ with tab2:
         fig4 = px.bar(price_by_flat_type, x='flat_type', y='resale_price', title='Average Resale Price by Flat Type')
         st.plotly_chart(fig4)
 
+        st.write("This is a random chart")
+        map_data = pd.DataFrame(
+            np.random.randn(1000, 2) / [50, 50] + [37.76, -122.4],
+            columns=['lat', 'lon'])
+
+        st.map(map_data)
+    with col5:
         fig5 = px.scatter(df, x='floor_area_sqm', y='resale_price', title='Resale Price vs. Floor Area', trendline="ols",
                           opacity=0.5)
         st.plotly_chart(fig5)
