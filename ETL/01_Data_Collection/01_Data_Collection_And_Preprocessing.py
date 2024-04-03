@@ -312,10 +312,14 @@ def data_collection_etl():
         filtered_df['mrt_proximity'] = filtered_df['mrt_nearest_distance'].apply(categorize_proximity)
         
         # Apply the function to create the 'sch_proximity' column
-        filtered_df['pri_sch_proximity'] = filtered_df['pri_sch_nearest_distance'].apply(categorize_cutoff)
-        filtered_df['sec_sch_proximity'] = filtered_df['sec_sch_nearest_dist'].apply(categorize_cutoff)
+        filtered_df['pri_sch_proximity'] = filtered_df['pri_sch_nearest_distance'].apply(categorize_proximity)
+        filtered_df['sec_sch_proximity'] = filtered_df['sec_sch_nearest_dist'].apply(categorize_proximity)
         
-        
+        # convert data type to string
+        for column in filtered_df.columns:
+            if filtered_df[column].dtype not in ['float64', 'int64']:
+                filtered_df[column] = filtered_df[column].astype(str)
+                
         # Define the file path for the CSV file
         csv_output_file_path = os.path.join(download_path,'processed_data/filtered_df1.csv')
 
@@ -324,11 +328,32 @@ def data_collection_etl():
         
         return download_path
 
+    @task()
+    def get_location(download_path: str):
+        dict_file_path = os.path.join(download_path, 'downloaded_data/location.csv')
+        df_file_path = os.path.join(download_path, 'processed_data/filtered_df1.csv')
+        
+        # Load resale index data
+        location_df = pd.read_csv(dict_file_path, index_col=0)
+        filtered_df = pd.read_csv(df_file_path)
+
+        # Merge DataFrames
+        merged_df = pd.merge(filtered_df, location_df, on='postal', how='left')
+        
+        # Define the file path for the CSV file
+        csv_output_file_path = os.path.join(download_path,'processed_data/filtered_df2.csv')
+
+        # Export the DataFrame to a CSV file
+        merged_df.to_csv(csv_output_file_path, index=False)
+        
+        return download_path
+
+
 
     @task()
     def normalize_price(download_path: str):
         dict_file_path = os.path.join(download_path, 'downloaded_data/QSGR628BIS.csv')
-        df_file_path = os.path.join(download_path, 'processed_data/filtered_df1.csv')
+        df_file_path = os.path.join(download_path, 'processed_data/filtered_df2.csv')
         
         # Load resale index data
         resale_index = pd.read_csv(dict_file_path)
@@ -369,20 +394,113 @@ def data_collection_etl():
         # Calculate normalized resale price
         filtered_df['normalized_resale_price'] = filtered_df['inflation'] * filtered_df['resale_price']
         
+        filtered_df['index'] = filtered_df.reset_index().index
+        
         # Define the file path for the CSV file
-        csv_output_file_path = os.path.join(download_path,'processed_data/filtered_df2.csv')
+        csv_output_file_path = os.path.join(download_path,'processed_data/filtered_df3.csv')
 
         # Export the DataFrame to a CSV file
         filtered_df.to_csv(csv_output_file_path, index=False)
         
         return download_path
-
-        
+    
     @task
-    def create_table():
+    def create_tables():
+        create_property_sql = """
+        DROP TABLE IF EXISTS Property;
+
+        CREATE TABLE Property (
+            index INTEGER PRIMARY KEY,
+            postal INTEGER,
+            flat_type VARCHAR(50),
+            flat_model VARCHAR(50),
+            flat_type_model VARCHAR(50),
+            floor_area_sqm FLOAT,
+            lease_commence_date INTEGER,
+            storey_range VARCHAR(20),
+            avg_storey_range FLOAT,
+            total_dwelling_units INTEGER
+        );
+        """
+        
+        create_address_sql = """
+        DROP TABLE IF EXISTS Address;
+
+        CREATE TABLE Address (
+            postal INTEGER PRIMARY KEY,
+            address VARCHAR(255) ,
+            town VARCHAR(255),
+            block VARCHAR(10),
+            street_name VARCHAR(255),
+            planning_area VARCHAR(255),
+            latitude FLOAT,
+            longitude FLOAT
+        );
+        """
+        
+        create_surroundings_sql = """
+        DROP TABLE IF EXISTS Surroundings;
+
+        CREATE TABLE Surroundings (
+            postal INTEGER PRIMARY KEY,
+            commercial INTEGER,
+            market_hawker INTEGER,
+            multistorey_carpark INTEGER,
+            precinct_pavilion INTEGER,
+            total_dwelling_units INTEGER,
+            mall_nearest_distance FLOAT,
+            hawker_nearest_distance FLOAT,
+            hawker_food_stalls INTEGER,
+            hawker_market_stalls INTEGER,
+            mrt_nearest_distance FLOAT,
+            mrt_name VARCHAR(255),
+            bus_interchange INTEGER,
+            mrt_interchange INTEGER,
+            bus_stop_nearest_distance FLOAT,
+            bus_stop_name VARCHAR(255),
+            pri_sch_nearest_distance FLOAT,
+            pri_sch_name VARCHAR(255),
+            vacancy INTEGER,
+            pri_sch_affiliation INTEGER,
+            sec_sch_nearest_dist FLOAT,
+            sec_sch_name VARCHAR(255),
+            cutoff_point INTEGER,
+            affiliation INTEGER,
+            school_type VARCHAR(50),
+            bus_stop_proximity VARCHAR(50),
+            mrt_proximity VARCHAR(50),
+            pri_sch_proximity VARCHAR(50),
+            sec_sch_proximity VARCHAR(50)
+        );
+        """
+        
+        create_transaction_sql = """
+        DROP TABLE IF EXISTS Transaction;
+
+        CREATE TABLE Transaction (
+            index INTEGER PRIMARY KEY,
+            month VARCHAR(50),
+            resale_price FLOAT,
+            year INTEGER,
+            quarter INTEGER,             
+            inflation FLOAT,
+            normalized_resale_price FLOAT
+        );
+        """
+        
+        # Use the Airflow PostgresHook to execute the SQL
+        hook = PostgresHook(postgres_conn_id='is3107_project')
+        hook.run(create_property_sql, autocommit=True)
+        hook.run(create_address_sql, autocommit=True)
+        hook.run(create_surroundings_sql, autocommit=True)
+        hook.run(create_transaction_sql, autocommit=True)
+
+    @task
+    def create_main_table():
         create_table_sql = """
         DROP TABLE IF EXISTS resale_flat_prices;
         CREATE TABLE IF NOT EXISTS resale_flat_prices (
+            index INTEGER PRIMARY KEY,
             month VARCHAR(50),
             town VARCHAR(255),
             flat_type VARCHAR(50),
@@ -429,6 +547,8 @@ def data_collection_etl():
             pri_sch_proximity VARCHAR(50),
             sec_sch_proximity VARCHAR(50),
             inflation FLOAT,
+            latitude FLOAT,
+            longitude FLOAT,
             normalized_resale_price FLOAT
         );
         """
@@ -436,10 +556,11 @@ def data_collection_etl():
         hook = PostgresHook(postgres_conn_id='is3107_project')
         hook.run(create_table_sql, autocommit=True)
         
+        
     @task
     def load(download_path: str):
         # Read the CSV file into a DataFrame
-        df_file_path = os.path.join(download_path, 'processed_data/filtered_df2.csv')
+        df_file_path = os.path.join(download_path, 'processed_data/filtered_df3.csv')
         
         # Read the CSV files into DataFrames
         df = pd.read_csv(df_file_path)
@@ -448,9 +569,144 @@ def data_collection_etl():
         data_to_insert = df.to_dict(orient='records')
         
         # Define the SQL query for inserting data into the table
+        load_sql_property = """
+        INSERT INTO Property (
+            index,
+            postal,
+            flat_type,
+            flat_model,
+            flat_type_model,
+            floor_area_sqm,
+            lease_commence_date,
+            storey_range,
+            avg_storey_range,
+            total_dwelling_units
+        ) VALUES (
+            %(index)s,
+            %(postal)s, 
+            %(flat_type)s,
+            %(flat_model)s, 
+            %(flat_type_model)s, 
+            %(floor_area_sqm)s, 
+            %(lease_commence_date)s,
+            %(storey_range)s, 
+            %(avg_storey_range)s, 
+            %(total_dwelling_units)s
+        ) ON CONFLICT (index) DO NOTHING;
+        """
+        
+        
+        load_sql_address = """
+        INSERT INTO Address (
+            postal,
+            address,
+            town,
+            block,
+            street_name,
+            planning_area,
+            latitude,
+            longitude
+        ) VALUES (
+            %(postal)s, 
+            %(address)s, 
+            %(town)s, 
+            %(block)s, 
+            %(street_name)s, 
+            %(planning_area)s, 
+            %(latitude)s, 
+            %(longitude)s
+        ) ON CONFLICT (postal) DO NOTHING;
+        """
+        
+        
+        load_sql_surroundings = """
+        INSERT INTO Surroundings (
+            postal,
+            commercial,
+            market_hawker,
+            multistorey_carpark,
+            precinct_pavilion,
+            total_dwelling_units,
+            mall_nearest_distance,
+            hawker_nearest_distance,
+            hawker_food_stalls,
+            hawker_market_stalls,
+            mrt_nearest_distance,
+            mrt_name,
+            bus_interchange,
+            mrt_interchange,
+            bus_stop_nearest_distance,
+            bus_stop_name,
+            pri_sch_nearest_distance,
+            pri_sch_name,
+            vacancy,
+            pri_sch_affiliation,
+            sec_sch_nearest_dist,
+            sec_sch_name,
+            cutoff_point,
+            affiliation,
+            school_type,
+            bus_stop_proximity,
+            mrt_proximity,
+            pri_sch_proximity,
+            sec_sch_proximity
+        ) VALUES (
+            %(postal)s, 
+            %(commercial)s, 
+            %(market_hawker)s,
+            %(multistorey_carpark)s,
+            %(precinct_pavilion)s, 
+            %(total_dwelling_units)s,
+            %(mall_nearest_distance)s, 
+            %(hawker_nearest_distance)s, 
+            %(hawker_food_stalls)s,
+            %(hawker_market_stalls)s,
+            %(mrt_nearest_distance)s,
+            %(mrt_name)s, 
+            %(bus_interchange)s,
+            %(mrt_interchange)s, 
+            %(bus_stop_nearest_distance)s,
+            %(bus_stop_name)s, 
+            %(pri_sch_nearest_distance)s, 
+            %(pri_sch_name)s, 
+            %(vacancy)s, 
+            %(pri_sch_affiliation)s,
+            %(sec_sch_nearest_dist)s, 
+            %(sec_sch_name)s, 
+            %(cutoff_point)s, 
+            %(affiliation)s,
+            %(school_type)s, 
+            %(bus_stop_proximity)s, 
+            %(mrt_proximity)s,
+            %(pri_sch_proximity)s, 
+            %(sec_sch_proximity)s
+        ) ON CONFLICT (postal) DO NOTHING;
+        """
+        
+        
+        load_sql_transaction = """
+        INSERT INTO Transaction (
+            index,
+            month,
+            resale_price,
+            year,
+            quarter,             
+            inflation,
+            normalized_resale_price
+        ) VALUES (
+            %(index)s, 
+            %(month)s, 
+            %(resale_price)s,
+            %(year)s, 
+            %(quarter)s,
+            %(inflation)s,
+            %(normalized_resale_price)s
+        ) ON CONFLICT (index) DO NOTHING;
+        """
+        
         load_sql = """
         INSERT INTO resale_flat_prices (
-            month, town, flat_type, block, street_name, storey_range, floor_area_sqm,
+            index, month, town, flat_type, block, street_name, storey_range, floor_area_sqm,
             flat_model, lease_commence_date, resale_price, address, commercial, market_hawker,
             multistorey_carpark, precinct_pavilion, total_dwelling_units, postal, planning_area,
             mall_nearest_distance, hawker_nearest_distance, hawker_food_stalls, hawker_market_stalls,
@@ -458,9 +714,9 @@ def data_collection_etl():
             bus_stop_name, pri_sch_nearest_distance, pri_sch_name, vacancy, pri_sch_affiliation,
             sec_sch_nearest_dist, sec_sch_name, cutoff_point, affiliation, year, quarter, avg_storey_range,
             flat_type_model, school_type, bus_stop_proximity, mrt_proximity, pri_sch_proximity,
-            sec_sch_proximity, inflation, normalized_resale_price
+            sec_sch_proximity, inflation, latitude, longitude, normalized_resale_price
         ) VALUES (
-            %(month)s, %(town)s, %(flat_type)s, %(block)s, %(street_name)s, %(storey_range)s, %(floor_area_sqm)s,
+            %(index)s, %(month)s, %(town)s, %(flat_type)s, %(block)s, %(street_name)s, %(storey_range)s, %(floor_area_sqm)s,
             %(flat_model)s, %(lease_commence_date)s, %(resale_price)s, %(address)s, %(commercial)s, %(market_hawker)s,
             %(multistorey_carpark)s, %(precinct_pavilion)s, %(total_dwelling_units)s, %(postal)s, %(planning_area)s,
             %(mall_nearest_distance)s, %(hawker_nearest_distance)s, %(hawker_food_stalls)s, %(hawker_market_stalls)s,
@@ -468,21 +724,29 @@ def data_collection_etl():
             %(bus_stop_name)s, %(pri_sch_nearest_distance)s, %(pri_sch_name)s, %(vacancy)s, %(pri_sch_affiliation)s,
             %(sec_sch_nearest_dist)s, %(sec_sch_name)s, %(cutoff_point)s, %(affiliation)s, %(year)s, %(quarter)s,
             %(avg_storey_range)s, %(flat_type_model)s, %(school_type)s, %(bus_stop_proximity)s, %(mrt_proximity)s,
-            %(pri_sch_proximity)s, %(sec_sch_proximity)s, %(inflation)s, %(normalized_resale_price)s
-        );
+            %(pri_sch_proximity)s, %(sec_sch_proximity)s, %(inflation)s, %(latitude)s, %(longitude)s, %(normalized_resale_price)s
+        ) ON CONFLICT (index) DO NOTHING;
         """
+        
         # Use the Airflow PostgresHook to execute the SQL
         hook = PostgresHook(postgres_conn_id='is3107_project')
         for row in data_to_insert:
+                hook.run(load_sql_property, parameters=row, autocommit=True)
+                hook.run(load_sql_address, parameters=row, autocommit=True)
+                hook.run(load_sql_surroundings, parameters=row, autocommit=True)
+                hook.run(load_sql_transaction, parameters=row, autocommit=True)
                 hook.run(load_sql, parameters=row, autocommit=True)
+                
                 
     # download_path = extract_external_data()
     download_path_2 = data_combination('/Users/renzhou/Downloads/Y3S2/IS3107/Data-Engine/ETL/01_Data_Collection/01_dataset')
     download_path_3 = process_external_data(download_path_2)
     download_path_4 = feature_engineering(download_path_3)
-    download_path_5 = normalize_price(download_path_4)
-    create_table()
-    load(download_path_5)
-                
+    download_path_5 = get_location(download_path_4)
+    download_path_6 = normalize_price(download_path_5)
+    
+    create_tables()
+    create_main_table()
+    load(download_path_6)
                 
 data_collection_dag = data_collection_etl()

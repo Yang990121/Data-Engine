@@ -305,25 +305,52 @@ def feature_engineering(download_path: str):
 
     # Apply the function to create the 'sch_proximity' column
     filtered_df['pri_sch_proximity'] = filtered_df['pri_sch_nearest_distance'].apply(
-        categorize_cutoff)
+        categorize_proximity)
     filtered_df['sec_sch_proximity'] = filtered_df['sec_sch_nearest_dist'].apply(
-        categorize_cutoff)
+        categorize_proximity)
+    
+    # convert data type to string
+    for column in filtered_df.columns:
+        if filtered_df[column].dtype not in ['float64', 'int64']:
+            filtered_df[column] = filtered_df[column].astype(str)
 
     # Define the file path for the CSV file
     csv_output_file_path = os.path.join(
         download_path, 'processed_data/filtered_df1.csv')
+    for column in filtered_df.columns:
+        if filtered_df[column].dtype not in ['float64', 'int64']:
+            filtered_df[column] = filtered_df[column].astype(str)
 
     # Export the DataFrame to a CSV file
     filtered_df.to_csv(csv_output_file_path, index=False)
 
     return download_path
 
+def get_location(download_path: str):
+        dict_file_path = os.path.join(download_path, 'downloaded_data/location.csv')
+        df_file_path = os.path.join(download_path, 'processed_data/filtered_df1.csv')
+        
+        # Load resale index data
+        location_df = pd.read_csv(dict_file_path, index_col=0)
+        filtered_df = pd.read_csv(df_file_path)
+
+        # Merge DataFrames
+        merged_df = pd.merge(filtered_df, location_df, on='postal', how='left')
+        
+        # Define the file path for the CSV file
+        csv_output_file_path = os.path.join(download_path,'processed_data/filtered_df2.csv')
+
+        # Export the DataFrame to a CSV file
+        merged_df.to_csv(csv_output_file_path, index=False)
+        
+        return download_path
+
 
 def normalize_price(download_path: str):
     dict_file_path = os.path.join(
         download_path, 'downloaded_data/QSGR628BIS.csv')
     df_file_path = os.path.join(
-        download_path, 'processed_data/filtered_df1.csv')
+        download_path, 'processed_data/filtered_df2.csv')
 
     # Load resale index data
     resale_index = pd.read_csv(dict_file_path)
@@ -367,10 +394,13 @@ def normalize_price(download_path: str):
     # Calculate normalized resale price
     filtered_df['normalized_resale_price'] = filtered_df['inflation'] * \
         filtered_df['resale_price']
+        
+    filtered_df['index'] = filtered_df.reset_index().index
+        
 
     # Define the file path for the CSV file
     csv_output_file_path = os.path.join(
-        download_path, 'processed_data/filtered_df2.csv')
+        download_path, 'processed_data/filtered_df3.csv')
 
     # Export the DataFrame to a CSV file
     filtered_df.to_csv(csv_output_file_path, index=False)
@@ -378,8 +408,14 @@ def normalize_price(download_path: str):
     return download_path
 
 
-download_path = extract_external_data()
+# download_path = extract_external_data()
+download_path = '/Users/renzhou/Downloads/Y3S2/IS3107/Data-Engine/ETL/01_Data_Collection/01_dataset'
 data_combination(download_path)
 process_external_data(download_path)
 feature_engineering(download_path)
+get_location(download_path)
 normalize_price(download_path)
+
+
+
+        
