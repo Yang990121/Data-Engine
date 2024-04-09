@@ -2,7 +2,7 @@ import json
 import requests
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import re
 from datetime import datetime
 from airflow.decorators import dag, task
