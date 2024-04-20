@@ -2,7 +2,7 @@ import json
 import requests
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import re
 from datetime import datetime
 from airflow.decorators import dag, task
@@ -555,8 +555,7 @@ def data_collection_etl():
         # Use the Airflow PostgresHook to execute the SQL
         hook = PostgresHook(postgres_conn_id='is3107_project')
         hook.run(create_table_sql, autocommit=True)
-        
-        
+            
     @task
     def load(download_path: str):
         # Read the CSV file into a DataFrame
@@ -737,7 +736,9 @@ def data_collection_etl():
                 hook.run(load_sql_transaction, parameters=row, autocommit=True)
                 hook.run(load_sql, parameters=row, autocommit=True)
                 
-                
+         
+    
+             
     # download_path = extract_external_data()
     download_path_2 = data_combination('/Users/renzhou/Downloads/Y3S2/IS3107/Data-Engine/ETL/01_Data_Collection/01_dataset')
     download_path_3 = process_external_data(download_path_2)
