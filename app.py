@@ -44,7 +44,7 @@ data = pd.read_csv('testing/resale_flat_prices_2017-2024_new.csv')
 
 st.title('IS3107 Project')
 
-tab1, tab2, tab3, tab4 = st.tabs(["Main Predicted Resale Price", "Similar Properties", "Testing", "Testing bucket"])
+tab1, tab2= st.tabs(["Main Predicted Resale Price", "Methodology"])
 
 init_streamlit_comm()
 
@@ -72,7 +72,7 @@ with st.sidebar:
     # Submit button
     submit_button = st.button("Submit")
 
-with tab1:
+with (tab1):
     col1, col2 = st.columns([2, 3])
     with col1:
         if submit_button:
@@ -95,61 +95,22 @@ with tab1:
             st.write("Please input the required parameters")
             st.write("Then Press Submit")
     with col2:
-        data = query_table_from_bq()
         if submit_button:
-            st.title('Resale Price vs. Date')
-            data_filtered1 = data[(data["flat_model"] == flat_model) & (data["town"] == town_type)].groupby("date")[
+            data = query_table_from_bq(town_type)
+            data_filtered1 = data[(data["flat_model"] == flat_model)].groupby("date")[
                 "resale_price"].mean().reset_index()
-
             if not data_filtered1.empty:
+                st.title('Resale Price vs. Date')
                 simply_line_plot(data_filtered1, flat_model, town_type)
             else:
-                st.write("No data filtered yet")
-                data_filtered2 = data[(data["flat_model"] == flat_model)].groupby("date")[
-                    "resale_price"].mean().reset_index()
-                if not data_filtered2:
-                    st.write("Wait")
+                data_filtered2 = data.groupby("date")["resale_price"].mean().reset_index()
+
+                if not data_filtered2.empty:
+                    st.title('Resale Price vs. Date')
+                    simply_line_plot(data_filtered2, town_type)
+                else:
+                    st.write("No Data Available")
 
 with tab2:
     st.write("Testing:")
 
-with tab3:
-    st.header("Predict Price")
-    # Input for prediction
-    user_input = st.number_input('Enter a value for prediction:', min_value=0.0, format="%.1f")
-
-    # Button for prediction
-    predict_button = st.button("Predict")
-
-    # When the user clicks 'Predict'
-    if predict_button:
-        # Load your model (consider loading it outside the function for efficiency)
-        model = joblib.load("trained_model/random_forest_model.pkl")
-
-        # Perform prediction
-        predicted_price = prediction_price(user_input, model)
-
-        # Display the predicted price
-        st.write(f"Predicted Price: {predicted_price}")
-    else:
-        st.write("Press Predict button to predict")
-    with tab4:
-        test = {'floor_area': 10000,
-                'storey_range': 5,
-                'total_dwelling_units': 3,
-                'vacancy ': 5,
-                'commercial': 1,
-                'mrt_interchange': 1,
-                'age_of_flat': 20,
-                'flat_model': 'model a',
-                'town': 'jurong west'}
-
-        predict_button2 = st.button("Predict2")
-        st.write(test)
-        if predict_button2:
-            # model = joblib.load("trained_model/random_forest.pkl")
-            model = load_model_from_gcs()
-            formatted_input_dict = format_input_to_dict(test)
-            num = lr_prediction(model, formatted_input_dict)
-            # Display the predicted price
-            st.write(f"Predicted Price: {num}")
