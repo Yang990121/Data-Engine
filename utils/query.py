@@ -12,7 +12,11 @@ storage_client = storage.Client(credentials=credentials)
 
 
 @st.cache_data(ttl=3600, show_spinner=True)
-def query_table_from_bq_old(flat_model_type):
+def query_table_from_bq(town_types):
+    # Ensure town_types is a list of town names
+    # Convert all town names to lowercase before passing to the query
+    lower_town_types = [town.lower() for town in town_types]
+
     query = """
             SELECT 
                 LOWER(p.flat_model) as flat_model, 
@@ -23,14 +27,22 @@ def query_table_from_bq_old(flat_model_type):
             LEFT JOIN `is3107-418011.is3107.Property_new` p ON d.property_id = p.property_id
             LEFT JOIN `is3107-418011.is3107.Address_new` a ON d.address_id = a.address_id
             LEFT JOIN `is3107-418011.is3107.Transaction_new` t ON d.transaction_id = t.transaction_id
+            WHERE LOWER(a.town) IN UNNEST(@towns)
             GROUP BY flat_model, town, date
         """
 
-    return client.query(query).to_dataframe()
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ArrayQueryParameter("towns", "STRING", lower_town_types)
+        ]
+    )
+
+    # Execute the query with the specified parameter
+    return client.query(query, job_config=job_config).to_dataframe()
 
 
 @st.cache_data(ttl=3600, show_spinner=True)
-def query_table_from_bq(town_type):
+def query_table_from_bq_old(town_type):
     # Assuming `flat_model_type` is a string containing the model type to filter for
     # Using parameterized queries for safety and efficiency
     query = """
@@ -55,7 +67,6 @@ def query_table_from_bq(town_type):
 
     # Execute the query with the specified parameter
     return client.query(query, job_config=job_config).to_dataframe()
-
 
 
 @st.cache_resource(ttl=3600, show_spinner=True)
