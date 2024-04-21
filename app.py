@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from pygwalker.api.streamlit import init_streamlit_comm
 import joblib
 from utils.model_func import prediction_price
-from utils.query import query_table_from_bq, load_model_from_gcs
+from utils.query import query_table_from_bq_filtered, load_model_from_gcs
 
 from utils.tranformation import lr_prediction, format_input_to_dict
 
@@ -143,7 +143,7 @@ with st.container():
                                    'premium apartment loft']
                 else:
                     flat_filter = [flat_model]
-                data = query_table_from_bq(town_filter)
+                data = query_table_from_bq_filtered(town_filter)
                 data_filtered1 = data[(data["flat_model"].isin(flat_filter))].groupby("date")[
                     "resale_price"].mean().reset_index()
                 if not data_filtered1.empty:

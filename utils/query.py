@@ -12,7 +12,7 @@ storage_client = storage.Client(credentials=credentials)
 
 
 @st.cache_data(ttl=3600, show_spinner=True)
-def query_table_from_bq(town_types):
+def query_table_from_bq_filtered(town_types):
     # Ensure town_types is a list of town names
     # Convert all town names to lowercase before passing to the query
     lower_town_types = [town.lower() for town in town_types]
