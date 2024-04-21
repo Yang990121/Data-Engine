@@ -46,11 +46,19 @@ def format_input_to_dict(input_dict):
     return results
 
 
-def lr_prediction(model, input_dict):
+def model_prediction(model, input_dict, filtered=True):
     input_dict = pd.DataFrame([input_dict])
-    filtered_features = ['floor_area_sqm', 'avg_storey_range', 'total_dwelling_units',
-                         'commercial', 'flat_model_model a', 'flat_model_new generation',
-                         'flat_model_other', 'flat_model_premium apartment']
+    if filtered:
+        filtered_features = ['floor_area_sqm', 'avg_storey_range', 'total_dwelling_units',
+                            'commercial', 'flat_model_model a', 'flat_model_new generation',
+                            'flat_model_other', 'flat_model_premium apartment']
+    else:
+        filtered_features = ['floor_area_sqm', 'avg_storey_range', 'total_dwelling_units',
+       'commercial', 'age_of_flat', 'flat_model_model a',
+       'flat_model_new generation', 'flat_model_other',
+       'flat_model_premium apartment', 'town_jurong west', 'town_other',
+       'town_punggol', 'town_sengkang', 'town_tampines', 'town_woodlands',
+       'town_yishun']
     results = model.predict(input_dict[filtered_features])
 
     min_price, max_price = (154209.1203140869, 1540198.2919407086)

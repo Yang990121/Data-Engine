@@ -6,7 +6,7 @@ import joblib
 from utils.model_func import prediction_price
 from utils.query import query_table_from_bq_filtered, load_model_from_gcs
 
-from utils.tranformation import lr_prediction, format_input_to_dict
+from utils.tranformation import model_prediction, format_input_to_dict
 
 st.set_page_config(layout="wide")
 
@@ -18,10 +18,20 @@ def simply_line_plot(data, flat_model=None, town_type=None):
         tag = flat_model.title() if flat_model is not None else town_type.title()
     # Plotting
     fig, ax = plt.subplots()
+    
+    # Calculate the minimum and maximum resale prices
+    min_price = data['resale_price'].min()
+    max_price = data['resale_price'].max()
+
+    # Calculate the range between min and max, and add one unit higher than resale_price
+    y_min = min_price
+    y_max = max(max_price, resale_price) + 50000 
+    
     ax.plot(data['date'], data['resale_price'])  # Plotting resale prices over time
     ax.set_title(f'Resale Price for {tag}')
     ax.set_xlabel('Date')
     ax.set_ylabel('Resale Price')
+    ax.set_ylim(y_min, y_max)
 
     # Add horizontal line
     ax.axhline(y=resale_price, color='r', linestyle='--', linewidth=2)
@@ -53,15 +63,15 @@ with st.sidebar:
     st.header("Input Parameters")
     # Numeric inputs
 
-    floor_area_sqm = st.number_input('Floor Area (sqm)', min_value=0, format="%d")
-    age_of_flat = st.number_input('Age of Flat', min_value=0, format="%d")
-    avg_storey_range = st.number_input('Storey', min_value=0, format="%d")
-    vacancy = st.number_input('Vacancy units left', min_value=0, format="%d")
-    total_dwelling_units = st.number_input('Total Dwelling Units', min_value=0, format="%d")
-
+    floor_area_sqm = st.number_input('Floor Area (sqm)', min_value=0, value=100, format="%d")
+    age_of_flat = st.number_input('Age of Flat', min_value=0, value=10, format="%d")
+    avg_storey_range = st.number_input('Storey', min_value=0, value=10, format="%d")
+    # vacancy = st.number_input('Vacancy units left', min_value=0, format="%d")
+    total_dwelling_units = st.number_input('Total Dwelling Units', min_value=0, value=120, format="%d")
+    
     # Boolean input
     commercial = st.checkbox('Commercial Unit?')
-    mrt = st.checkbox('Near MRT Interchange?')
+    # mrt = st.checkbox('Near MRT Interchange?')
 
     # Dropdown inputs
     town_type = st.selectbox('Town Type', ['jurong west', 'other', 'punggol', 'sengkang', 'tampines', 'woodlands', 'yishun'])
@@ -78,23 +88,30 @@ with st.container():
     with (tab1):
         col1, col2 = st.columns([1.2, 0.8])
         with col1:
+            model_lasso = load_model_from_gcs("linear_model.pkl")
+            model_lr = load_model_from_gcs("linear_model_all.pkl")
+            model_knn = load_model_from_gcs("knn_full.pkl")
             if st.session_state['submitted']:
                 user_input = {'floor_area_sqm': floor_area_sqm,
                               'avg_storey_range': avg_storey_range,
                               'total_dwelling_units': total_dwelling_units,
-                              'vacancy ': vacancy,
+                              'vacancy ': 20,
                               'commercial': 1 if commercial else 0,
-                              'mrt_interchange': 1 if mrt else 0,
+                              'mrt_interchange': 1,
                               'age_of_flat': age_of_flat,
                               'flat_model': flat_model,
                               'town': town_type}
-
-                model = load_model_from_gcs()
-                formatted_input_dict = format_input_to_dict(user_input)
-                resale_price = lr_prediction(model, formatted_input_dict)
-                st.title(f"Predicted Resale Price: ${resale_price:,.0f}")
                 # st.write("Your inputs")
                 # st.write(user_input)
+                formatted_input_dict = format_input_to_dict(user_input)
+                # st.write("Test")
+                # st.write(formatted_input_dict)
+                resale_price =0.5*model_prediction(model_lr, formatted_input_dict, False) + \
+                    0.5*model_prediction(model_knn, formatted_input_dict, False)
+                        
+                        
+                st.title(f"Predicted Resale Price: ${resale_price:,.0f}")
+                
             else:
                 st.write("Please input the required parameters")
                 st.write("Then Press Submit")
@@ -165,10 +182,10 @@ with st.container():
             st.write("**Floor Area (sqm):** Total area of the flat in square meters")
             st.write("**Age of Flat:** Number of years since the flat was built")
             st.write("**Story:** Number of stories for the flat")
-            st.write("**Vacancy units left:** Number of unsold or unoccupied units in the building")
+            # st.write("**Vacancy units left:** Number of unsold or unoccupied units in the building")
             st.write("**Total Dwelling Units:** Number of residential units in the building")
             st.write("**Commercial Unit:** Check for commercial development")
-            st.write("**Near MRT interchange:** Proximity to an MRT interchange")
+            # st.write("**Near MRT interchange:** Proximity to an MRT interchange")
             st.write("**Town Type:** General area the flat is located in")
             st.write("**Flat Model:** The design and layout type of the flat")
         with col3:

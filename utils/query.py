@@ -70,10 +70,10 @@ def query_table_from_bq_old(town_type):
 
 
 @st.cache_resource(ttl=3600, show_spinner=True)
-def load_model_from_gcs():
+def load_model_from_gcs(model):
     # Get the bucket and blob
     bucket_name = 'is3107_bucket'
-    pickle_file_name = 'linear_model.pkl'
+    pickle_file_name = model
     bucket = storage_client.get_bucket(bucket_name)
     blob = bucket.blob(pickle_file_name)
 

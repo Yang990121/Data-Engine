@@ -8,7 +8,9 @@ from datetime import datetime
 from airflow.decorators import dag, task
 import os
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-
+from google.cloud import bigquery
+from google.oauth2 import service_account
+import time
 
 # Define the default arguments for the DAG
 default_args = {
@@ -160,6 +162,8 @@ def data_collection_etl():
             df.to_csv(csv_file_path, index=False)  # Set index=False to exclude the index from the CSV file
 
             print(f"DataFrame has been exported to {csv_file_path}")  
+        download_path = '/Users/renzhou/Downloads/Y3S2/IS3107/Data-Engine/ETL/01_Data_Collection/01_dataset'
+
         return download_path
 
     @task() 
@@ -197,7 +201,6 @@ def data_collection_etl():
         combined_df.to_csv(csv_file_path_2, index=False)
 
         return download_path
-    
     
     @task()
     def process_external_data(download_path: str):
@@ -555,7 +558,7 @@ def data_collection_etl():
         # Use the Airflow PostgresHook to execute the SQL
         hook = PostgresHook(postgres_conn_id='is3107_project')
         hook.run(create_table_sql, autocommit=True)
-            
+        
     @task
     def load(download_path: str):
         # Read the CSV file into a DataFrame
@@ -736,18 +739,96 @@ def data_collection_etl():
                 hook.run(load_sql_transaction, parameters=row, autocommit=True)
                 hook.run(load_sql, parameters=row, autocommit=True)
                 
-         
-    
-             
-    # download_path = extract_external_data()
-    download_path_2 = data_combination('/Users/renzhou/Downloads/Y3S2/IS3107/Data-Engine/ETL/01_Data_Collection/01_dataset')
+    @task 
+    def load_on_cloud(download_path: str):
+        # Read the CSV file into a DataFrame
+        df_file_path = os.path.join(download_path, 'processed_data/filtered_df3.csv')
+        
+        CREDS = os.path.join(download_path, 'is3107-418011-f63573e5e1f3.json')
+        credentials = service_account.Credentials.from_service_account_file(CREDS)
+        client = bigquery.Client(credentials=credentials)
+        job_config = bigquery.QueryJobConfig()
+        
+        # Read the CSV files into DataFrames
+        df = pd.read_csv(df_file_path)
+        
+        property_id = ['flat_type', 'flat_model', 'flat_type_model',
+                  'floor_area_sqm', 'lease_commence_date', 'storey_range',
+                  'avg_storey_range', 'total_dwelling_units']
+        
+        address_id = ['postal','address', 'town', 'block', 'street_name', 
+                                'planning_area', 'latitude', 'longitude']
+        
+        surroundings_id = ['commercial', 'market_hawker', 'multistorey_carpark', 'precinct_pavilion',
+                        'mall_nearest_distance', 'hawker_nearest_distance',
+                                    'hawker_food_stalls', 'hawker_market_stalls', 'mrt_nearest_distance', 'mrt_name', 'bus_interchange', 'mrt_interchange', 'bus_stop_nearest_distance', 'bus_stop_name',
+                                    'pri_sch_nearest_distance', 'pri_sch_name', 'vacancy', 'pri_sch_affiliation',
+                                    'sec_sch_nearest_dist', 'sec_sch_name', 'cutoff_point', 'affiliation', 'school_type',
+                                    'bus_stop_proximity', 'mrt_proximity', 'pri_sch_proximity', 'sec_sch_proximity']
+        transaction_id = ['month', 'year', 'quarter', 'inflation', 'normalized_resale_price']
+
+
+        property_df = df[property_id].copy().drop_duplicates()
+        property_df["property_id"] = [i for i in range(1 , len(property_df) + 1)]
+
+        address_df = df[address_id].copy().drop_duplicates()
+        address_df["address_id"] = [i for i in range(1 , len(address_df) + 1)]
+
+        surroundings_df = df[surroundings_id].copy().drop_duplicates()
+        surroundings_df["surroundings_id"] = [i for i in range(1 , len(surroundings_df) + 1)]
+
+        transaction_df = df[transaction_id].copy().drop_duplicates()
+        transaction_df["transaction_id"] = [i for i in range(1 , len(transaction_df) + 1)]
+
+        resale_data = df.copy()
+ 
+        project_id = "is3107-418011"
+
+        # Dataset ID and table name
+        dataset_id = "is3107"  # You have nested dataset, so specify only the innermost dataset
+        table_id = "resale_data"   # Table ID within the specified dataset
+
+        # Upload DataFrame to BigQuery
+        resale_data.to_gbq(destination_table=f"{project_id}.{dataset_id}.{table_id}", project_id=project_id, if_exists="replace")
+        
+        # Dataset ID and table name
+        table_id = "Property_new"   # Table ID within the specified dataset
+
+        # Upload DataFrame to BigQuery
+        property_df.to_gbq(destination_table=f"{project_id}.{dataset_id}.{table_id}", project_id=project_id, if_exists="replace")
+        
+        # Dataset ID and table name
+        table_id = "Address_new"   # Table ID within the specified dataset
+
+        # Upload DataFrame to BigQuery
+        address_df.to_gbq(destination_table=f"{project_id}.{dataset_id}.{table_id}", project_id=project_id, if_exists="replace")
+        
+        # Dataset ID and table name
+        table_id = "Surroundings_new"   # Table ID within the specified dataset
+
+        # Upload DataFrame to BigQuery
+        surroundings_df.to_gbq(destination_table=f"{project_id}.{dataset_id}.{table_id}", project_id=project_id, if_exists="replace")
+        
+        # Dataset ID and table name
+        table_id = "Transaction_new"   # Table ID within the specified dataset
+
+        # Upload DataFrame to BigQuery
+        transaction_df.to_gbq(destination_table=f"{project_id}.{dataset_id}.{table_id}", project_id=project_id, if_exists="replace")
+
+        return download_path       
+                
+    download_path = extract_external_data()
+    download_path_2 = data_combination(download_path)
     download_path_3 = process_external_data(download_path_2)
     download_path_4 = feature_engineering(download_path_3)
     download_path_5 = get_location(download_path_4)
     download_path_6 = normalize_price(download_path_5)
     
-    create_tables()
-    create_main_table()
-    load(download_path_6)
+    # create_tables()
+    # create_main_table()
+    # load(download_path_6)
+    load_on_cloud(download_path_6)
+    
+    
                 
 data_collection_dag = data_collection_etl()
