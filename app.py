@@ -1,54 +1,11 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
 from pygwalker.api.streamlit import init_streamlit_comm
-import joblib
-from utils.model_func import prediction_price
 from utils.query import query_table_from_bq_filtered, load_model_from_gcs
-
+from utils.graphing import simply_line_plot
 from utils.tranformation import model_prediction, format_input_to_dict
 
 st.set_page_config(layout="wide")
-
-
-def simply_line_plot(data, flat_model=None, town_type=None):
-    if flat_model is not None and town_type is not None:
-        tag = f"{town_type.title()} and {flat_model.title()}"
-    else:
-        tag = flat_model.title() if flat_model is not None else town_type.title()
-    # Plotting
-    fig, ax = plt.subplots()
-    
-    # Calculate the minimum and maximum resale prices
-    min_price = data['resale_price'].min()
-    max_price = data['resale_price'].max()
-
-    # Calculate the range between min and max, and add one unit higher than resale_price
-    y_min = min_price
-    y_max = max(max_price, resale_price) + 50000 
-    
-    ax.plot(data['date'], data['resale_price'])  # Plotting resale prices over time
-    ax.set_title(f'Resale Price for {tag}')
-    ax.set_xlabel('Date')
-    ax.set_ylabel('Resale Price')
-    ax.set_ylim(y_min, y_max)
-
-    # Add horizontal line
-    ax.axhline(y=resale_price, color='r', linestyle='--', linewidth=2)
-
-    # Label for the horizontal line
-    label_position_x = data['date'][0]  # Positioning the label at the start of the data; adjust as needed
-    label_position_y = resale_price + 6000  # Slightly above the line
-    ax.text(label_position_x, label_position_y, f'Predicted Resale Price: {resale_price:,.0f}', color='red')
-
-    # Rotate date labels for better readability
-    plt.xticks(rotation=45)
-
-    plt.tight_layout()
-
-    # Display the plot in Streamlit
-    st.pyplot(fig)
-
 
 data = pd.read_csv('testing/resale_flat_prices_2017-2024_new.csv')
 
@@ -68,13 +25,14 @@ with st.sidebar:
     avg_storey_range = st.number_input('Storey', min_value=0, value=10, format="%d")
     # vacancy = st.number_input('Vacancy units left', min_value=0, format="%d")
     total_dwelling_units = st.number_input('Total Dwelling Units', min_value=0, value=120, format="%d")
-    
+
     # Boolean input
     commercial = st.checkbox('Commercial Unit?')
     # mrt = st.checkbox('Near MRT Interchange?')
 
     # Dropdown inputs
-    town_type = st.selectbox('Town Type', ['jurong west', 'other', 'punggol', 'sengkang', 'tampines', 'woodlands', 'yishun'])
+    town_type = st.selectbox('Town Type',
+                             ['jurong west', 'other', 'punggol', 'sengkang', 'tampines', 'woodlands', 'yishun'])
     flat_model = st.selectbox('Flat Model', ['model a', 'new generation', 'other', 'premium apartment'])
 
     # Submit button
@@ -86,8 +44,8 @@ with st.sidebar:
 with st.container():
     tab1, tab2 = st.tabs(["Main Predicted Resale Price", "Methodology"])
     with (tab1):
-        col1, col2 = st.columns([1.2, 0.8])
-        with col1:
+        col1, col2, col3 = st.columns([0.2, 1.6, 0.2])
+        with col2:
             model_lasso = load_model_from_gcs("linear_model.pkl")
             model_lr = load_model_from_gcs("linear_model_all.pkl")
             model_knn = load_model_from_gcs("knn_full.pkl")
@@ -106,16 +64,15 @@ with st.container():
                 formatted_input_dict = format_input_to_dict(user_input)
                 # st.write("Test")
                 # st.write(formatted_input_dict)
-                resale_price =0.5*model_prediction(model_lr, formatted_input_dict, False) + \
-                    0.5*model_prediction(model_knn, formatted_input_dict, False)
-                        
-                        
+                resale_price = 0.5 * model_prediction(model_lr, formatted_input_dict, False) + \
+                                0.5 * model_prediction(model_knn, formatted_input_dict, False)
+
                 st.title(f"Predicted Resale Price: ${resale_price:,.0f}")
-                
+
             else:
                 st.write("Please input the required parameters")
                 st.write("Then Press Submit")
-        with col1:
+        with col2:
             if st.session_state['submitted']:
                 if town_type == "other":
                     town_filter = ['ang mo kio',
@@ -165,18 +122,19 @@ with st.container():
                     "resale_price"].mean().reset_index()
                 if not data_filtered1.empty:
                     st.header('Historical Resale Price')
-                    simply_line_plot(data_filtered1, flat_model, town_type)
+                    simply_line_plot(data_filtered1, resale_price, flat_model, town_type)
                 else:
                     data_filtered2 = data.groupby("date")["resale_price"].mean().reset_index()
-
                     if not data_filtered2.empty:
                         st.header('Historical Resale Price')
-                        simply_line_plot(data_filtered2, town_type)
+                        simply_line_plot(data_filtered2,resale_price, town_type)
+                        st.write(f'*No Data for both {town_type.title()} and {flat_model.title()}')
+                        st.write(f'*Will only show data for {town_type.title()}')
                     else:
                         st.write("No Data Available")
 
     with tab2:
-        col1, col2, col3 = st.columns([5, 0.5,  5])
+        col1, col2 = st.columns([1, 1])
         with col1:
             st.header("Parameters Available")
             st.write("**Floor Area (sqm):** Total area of the flat in square meters")
@@ -188,7 +146,7 @@ with st.container():
             # st.write("**Near MRT interchange:** Proximity to an MRT interchange")
             st.write("**Town Type:** General area the flat is located in")
             st.write("**Flat Model:** The design and layout type of the flat")
-        with col3:
+        with col2:
             st.header("Prediction Model Used")
             st.write("This calculator helps you make informed decisions by predicting outcomes based on your inputs. "
                      "It uses a combination of advanced techniques that analyze historical data patterns.")
@@ -200,5 +158,3 @@ with st.container():
                      "reliable forecast!")
             st.write("We will also provide historical resale price for comparison between the predicted and "
                      "historical price")
-
-
