@@ -52,9 +52,9 @@ def query_table_from_bq_old(town_type):
                 AVG(d.resale_price) as resale_price,
                 LAST_DAY(PARSE_DATE('%Y-%m', t.month)) as date
             FROM `is3107-418011.is3107.resale_data` d
-            LEFT JOIN `is3107-418011.is3107.Property_new` p ON d.property_id = p.property_id
-            LEFT JOIN `is3107-418011.is3107.Address_new` a ON d.address_id = a.address_id
-            LEFT JOIN `is3107-418011.is3107.Transaction_new` t ON d.transaction_id = t.transaction_id
+            LEFT JOIN `is3107-418011.is3107.Property_clustered` p ON d.property_id = p.property_id
+            LEFT JOIN `is3107-418011.is3107.Address_clustered` a ON d.address_id = a.address_id
+            LEFT JOIN `is3107-418011.is3107.Transaction_indexed` t ON d.transaction_id = t.transaction_id
             WHERE LOWER(a.town) = @town
             GROUP BY flat_model, town, date
         """
