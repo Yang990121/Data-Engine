@@ -32,8 +32,8 @@ with st.sidebar:
 
     # Dropdown inputs
     town_type = st.selectbox('Town Type',
-                             ['jurong west', 'other', 'punggol', 'sengkang', 'tampines', 'woodlands', 'yishun'])
-    flat_model = st.selectbox('Flat Model', ['model a', 'new generation', 'other', 'premium apartment'])
+                             ['jurong west', 'other', 'punggol', 'sengkang', 'tampines', 'woodlands', 'yishun', 'bedok'])
+    flat_model = st.selectbox('Flat Model', ['model a', 'new generation', 'other', 'premium apartment', 'improved'])
 
     # Submit button
     if st.button("Submit"):
@@ -64,8 +64,8 @@ with st.container():
                 formatted_input_dict = format_input_to_dict(user_input)
                 # st.write("Test")
                 # st.write(formatted_input_dict)
-                resale_price = 0.5 * model_prediction(model_lr, formatted_input_dict, False) + \
-                                0.5 * model_prediction(model_knn, formatted_input_dict, False)
+                resale_price =  model_prediction(model_lr, formatted_input_dict, False)/3 + \
+                                2 * model_prediction(model_knn, formatted_input_dict, False)/3
 
                 st.title(f"Predicted Resale Price: ${resale_price:,.0f}")
 
