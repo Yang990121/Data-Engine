@@ -32,7 +32,7 @@ default_args = {
     tags=['is3107project'],
 )
 def data_collection_etl():
-    @task()
+    @task
     def extract_external_data():
         urls = ['https://data.gov.sg/api/action/datastore_search?resource_id=d_ebc5ab87086db484f88045b47411ebc5',
                 'https://data.gov.sg/api/action/datastore_search?resource_id=d_43f493c6c50d54243cc1eab0df142d6a',
@@ -166,7 +166,7 @@ def data_collection_etl():
 
         return download_path
 
-    @task() 
+    @task
     def data_combination(download_path: str):
         # Initialize an empty list to store DataFrames
         dfs = []
@@ -202,7 +202,7 @@ def data_collection_etl():
 
         return download_path
     
-    @task()
+    @task
     def process_external_data(download_path: str):
         # Load the dataset
         csv_file_path = os.path.join(download_path, 'downloaded_data/resale-flat-prices-full-version.csv')
@@ -222,7 +222,7 @@ def data_collection_etl():
 
         return download_path
         
-    @task()
+    @task
     def feature_engineering(download_path: str):
         dict_file_path = os.path.join(download_path, 'processed_data/feature_dict.csv')
         df_file_path = os.path.join(download_path, 'processed_data/combined_dataframe.csv')
@@ -331,7 +331,7 @@ def data_collection_etl():
         
         return download_path
 
-    @task()
+    @task
     def get_location(download_path: str):
         dict_file_path = os.path.join(download_path, 'downloaded_data/location.csv')
         df_file_path = os.path.join(download_path, 'processed_data/filtered_df1.csv')
@@ -353,7 +353,7 @@ def data_collection_etl():
 
 
 
-    @task()
+    @task
     def normalize_price(download_path: str):
         dict_file_path = os.path.join(download_path, 'downloaded_data/QSGR628BIS.csv')
         df_file_path = os.path.join(download_path, 'processed_data/filtered_df2.csv')

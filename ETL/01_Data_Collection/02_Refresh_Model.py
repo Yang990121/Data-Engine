@@ -32,7 +32,7 @@ default_args = {
 
 def model_refresh_etl():
 
-    @task() 
+    @task
     def feature_engineering(download_path: str):
         csv_file_path = os.path.join(download_path, 'processed_data/filtered_df3.csv')
         
@@ -103,7 +103,7 @@ def model_refresh_etl():
         return download_path
     
     
-    @task() 
+    @task
     def model_retrain(download_path: str):
         csv_file_path = os.path.join(download_path, 'processed_data/filtered_df4.csv')
         
@@ -144,10 +144,10 @@ def model_refresh_etl():
             
         return download_path
     
-    
-    download_path = feature_engineering("/Users/renzhou/Downloads/Y3S2/IS3107/Data-Engine/ETL/01_Data_Collection/01_dataset")
-    model_retrain(download_path)
+    download_path = "/Users/renzhou/Downloads/Y3S2/IS3107/Data-Engine/ETL/01_Data_Collection/01_dataset"
+    download_path_1 = feature_engineering(download_path)
+    download_path_2 = model_retrain(download_path_1)
         
 
-data_collection_dag = model_refresh_etl()
+data_refresh_dag = model_refresh_etl()
         
