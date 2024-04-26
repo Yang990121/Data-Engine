@@ -5,9 +5,15 @@ from airflow.decorators import dag, task
 import os
 import time
 import pickle
+import csv
 
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.linear_model import LinearRegression
+
+from google.oauth2 import service_account
+from google.cloud import storage
+from google.cloud import bigquery
+
 
 
 # Define the default arguments for the DAG
@@ -31,7 +37,42 @@ default_args = {
 )
 
 def model_refresh_etl():
+    @task
+    def pull_from_bigquery(download_path: str):
+        CREDS = os.path.join(download_path, 'is3107-418011-f63573e5e1f3.json')
+        credentials = service_account.Credentials.from_service_account_file(CREDS)
+                
+        # Initialize BigQuery client
+        client = bigquery.Client(credentials=credentials, project="is3107-418011")
 
+        # Specify dataset and table IDs
+        dataset_id = "is3107"  # You have nested dataset, so specify only the innermost dataset
+        table_id = "resale_price"   # Table ID within the specified dataset
+
+        # Reference to the table
+        table_ref = client.dataset(dataset_id).table(table_id)
+
+        # Fetch the table
+        table = client.get_table(table_ref)
+        
+        # Define the path for the local CSV file
+        csv_file_path = os.path.join(download_path, 'processed_data/filtered_df3.csv')
+
+        # Open the CSV file in write mode
+        with open(csv_file_path, mode="w", newline="", encoding="utf-8") as csvfile:
+            # Initialize a CSV writer object
+            csv_writer = csv.writer(csvfile)
+            
+            # Write the header row based on table schema
+            header = [field.name for field in table.schema]
+            csv_writer.writerow(header)
+            
+            # Iterate over rows and write them to the CSV file
+            for row in client.list_rows(table):
+                csv_writer.writerow([row[field.name] for field in table.schema])
+                
+        return download_path
+    
     @task
     def feature_engineering(download_path: str):
         csv_file_path = os.path.join(download_path, 'processed_data/filtered_df3.csv')
@@ -144,9 +185,39 @@ def model_refresh_etl():
             
         return download_path
     
+    @task
+    def model_upload(download_path: str):
+        CREDS = os.path.join(download_path, 'is3107-418011-f63573e5e1f3.json')
+        credentials = service_account.Credentials.from_service_account_file(CREDS)
+        storage_client = storage.Client(credentials=credentials)
+
+        # Define the name of the GCS bucket and the local path to the pickle file
+        bucket_name = 'is3107_bucket'
+        local_knn_pickle_file_path = os.path.join(download_path, 'processed_data/knn_model.pkl')
+        
+        # Define the destination path for the pickle file in GCS
+        destination_knn_blob_name = 'knn_model_new.pkl'
+
+        # Upload the pickle file to GCS
+        bucket = storage_client.bucket(bucket_name)
+        blob_knn = bucket.blob(destination_knn_blob_name)
+        blob_knn.upload_from_filename(local_knn_pickle_file_path)
+        
+        local_linear_pickle_file_path = os.path.join(download_path, 'processed_data/linear_model.pkl')
+        
+        # Define the destination path for the pickle file in GCS
+        destination_linear_blob_name = 'linear_model_new.pkl'
+
+        # Upload the pickle file to GCS
+        blob_linear = bucket.blob(destination_linear_blob_name)
+        blob_linear.upload_from_filename(local_linear_pickle_file_path)
+        
+    
     download_path = "/Users/renzhou/Downloads/Y3S2/IS3107/Data-Engine/ETL/01_Data_Collection/01_dataset"
+    download_path = pull_from_bigquery(download_path)
     download_path_1 = feature_engineering(download_path)
     download_path_2 = model_retrain(download_path_1)
+    model_upload(download_path_2)
         
 
 data_refresh_dag = model_refresh_etl()

@@ -786,9 +786,12 @@ def data_collection_etl():
 
         # Dataset ID and table name
         dataset_id = "is3107"  # You have nested dataset, so specify only the innermost dataset
-        table_id = "resale_data"   # Table ID within the specified dataset
 
+        table_id = "resale_price"   # Table ID within the specified dataset
+        df.to.to_gbq(destination_table=f"{project_id}.{dataset_id}.{table_id}", project_id=project_id, if_exists="replace")
+        
         # Upload DataFrame to BigQuery
+        table_id = "resale_data"   # Table ID within the specified dataset
         resale_data.to_gbq(destination_table=f"{project_id}.{dataset_id}.{table_id}", project_id=project_id, if_exists="replace")
         
         # Dataset ID and table name
