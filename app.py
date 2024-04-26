@@ -7,8 +7,6 @@ from utils.tranformation import model_prediction, format_input_to_dict
 
 st.set_page_config(layout="wide")
 
-data = pd.read_csv('testing/resale_flat_prices_2017-2024_new.csv')
-
 st.title('Singapore Housing Resale Price Prediction')
 
 init_streamlit_comm()

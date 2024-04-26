@@ -5,8 +5,9 @@ import streamlit as st
 import io
 import pickle
 
-CREDS = 'is3107-418011-f63573e5e1f3.json'
-credentials = service_account.Credentials.from_service_account_file(CREDS)
+# Load credentials from Streamlit secrets
+creds_dict = st.secrets["gcp_service_account"]
+credentials = service_account.Credentials.from_service_account_info(creds_dict)
 client = bigquery.Client(credentials=credentials)
 storage_client = storage.Client(credentials=credentials)
 
