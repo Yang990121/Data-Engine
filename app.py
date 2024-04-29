@@ -44,8 +44,8 @@ with st.container():
     with (tab1):
         col1, col2, col3 = st.columns([0.2, 1.6, 0.2])
         with col2:
-            model_lr = load_model_from_gcs("linear_model_new.pkl")
-            model_knn = load_model_from_gcs("knn_model_new.pkl")
+            model_lr = load_model_from_gcs("linear_model.pkl")
+            model_knn = load_model_from_gcs("knn_model.pkl")
             if st.session_state['submitted']:
                 user_input = {'floor_area_sqm': floor_area_sqm,
                               'avg_storey_range': avg_storey_range,
