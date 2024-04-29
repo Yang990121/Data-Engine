@@ -15,7 +15,7 @@ def simply_line_plot(data, resale_price, flat_model=None, town_type=None):
     max_price = data['resale_price'].max()
 
     # Calculate the range between min and max, and add one unit higher than resale_price
-    y_min = min_price
+    y_min = min_price - 50000
     y_max = max(max_price, resale_price) + 50000
 
     ax.plot(data['date'], data['resale_price'])  # Plotting resale prices over time
