@@ -781,6 +781,13 @@ def data_collection_etl():
         transaction_df["transaction_id"] = [i for i in range(1 , len(transaction_df) + 1)]
 
         resale_data = df.copy()
+        resale_data["property_id"] = resale_data[property_id].merge(property_df, how='left')['property_id']
+        resale_data["address_id"] = resale_data[address_id].merge(address_df, how='left')['address_id']
+        resale_data["surroundings_id"] = resale_data[surroundings_id].merge(surroundings_df, how='left')['surroundings_id']
+        resale_data["transaction_id"] = resale_data[transaction_id].merge(transaction_df, how='left')['transaction_id']
+
+        # Drop the original columns that have been replaced
+        resale_data.drop(property_id + address_id + surroundings_id + transaction_id, axis=1, inplace=True)
  
         project_id = "is3107-418011"
 
@@ -788,7 +795,7 @@ def data_collection_etl():
         dataset_id = "is3107"  # You have nested dataset, so specify only the innermost dataset
 
         table_id = "resale_price"   # Table ID within the specified dataset
-        df.to.to_gbq(destination_table=f"{project_id}.{dataset_id}.{table_id}", project_id=project_id, if_exists="replace")
+        df.to_gbq(destination_table=f"{project_id}.{dataset_id}.{table_id}", project_id=project_id, if_exists="replace")
         
         # Upload DataFrame to BigQuery
         table_id = "resale_data"   # Table ID within the specified dataset
